@@ -12,7 +12,7 @@ pub struct Lambertian {
 }
 
 impl Material for Lambertian {
-    fn scatter(&self, r_in: &Ray, rec: &HitRecord) -> Option<(Color, Ray)> {
+    fn scatter(&self, _r_in: &Ray, rec: &HitRecord) -> Option<(Color, Ray)> {
         let mut scatter_direction = rec.normal + Vec3::random_unit_vector();
 
         // catch degenerate scatter direction
@@ -66,7 +66,7 @@ impl Material for Dialetric {
     fn scatter(&self, r_in: &Ray, rec: &HitRecord) -> Option<(Color, Ray)> {
         let attenuation = Color::new(1.0, 1.0, 1.0);
         let refration_ratio = if rec.front_face {
-            (1.0 / self.index_of_refraction)
+            1.0 / self.index_of_refraction
         } else {
             self.index_of_refraction
         };

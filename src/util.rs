@@ -6,10 +6,10 @@ use std::{
     rc::Rc,
 };
 
-use rand::{random, Rng};
+use rand::{Rng};
 
 use crate::material;
-use material::{Lambertian, Material};
+use material::{Material};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vec3 {
@@ -57,16 +57,6 @@ impl Vec3 {
     pub fn random_unit_vector() -> Vec3 {
         // Not sure about this. Should maybe just be some util function outside of the impl.
         Self::random_in_unit_sphere().unit_vector()
-    }
-
-    pub fn random_in_hemisphere(normal: Vec3) -> Vec3 {
-        let in_unit_sphere = Self::random_in_unit_sphere();
-        // in the same hemisphere as normal
-        if in_unit_sphere * normal > 0.0 {
-            in_unit_sphere
-        } else {
-            -in_unit_sphere
-        }
     }
 
     pub fn random_in_unit_disk() -> Vec3 {

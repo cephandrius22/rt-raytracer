@@ -1,13 +1,10 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-use std::fs::File;
-use std::io::BufWriter;
-use std::path::Path;
 use std::rc::Rc;
 
 use log::error;
-use material::{Dialetric, Lambertian, Metal};
+use material::{Lambertian, Metal};
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
@@ -17,7 +14,7 @@ use winit_input_helper::WinitInputHelper;
 
 // I'm not sure that I'm doing this correctly.
 mod util;
-use util::{Color, HitRecord, Hittable, HittableList, Point3, Ray, Sphere, Vec3};
+use util::{Color, Hittable, HittableList, Point3, Ray, Sphere, Vec3};
 
 mod camera;
 use camera::Camera;
@@ -71,16 +68,9 @@ fn color_pixel(ray: &Ray, world: &HittableList, depth: i32) -> Vec3 {
                 z: res.z * attenuation.z,
             };
             return vec;
-        } else {
-            return Color::new(0.0, 0.0, 0.0);
         }
-        let target = rec.p + Vec3::random_in_hemisphere(rec.normal);
-        let random_ray = Ray {
-            origin: rec.p,
-            direction: target - rec.p,
-        };
-        return color_pixel(&random_ray, world, depth - 1) * 0.5;
-        // return Vec3::new(rec.normal.x + 1.0, rec.normal.y + 1.0, rec.normal.z + 1.0) * 0.5;
+        
+        return Color::new(0.0, 0.0, 0.0);
     }
 
     let unit_direction = ray.direction.unit_vector();
@@ -90,9 +80,63 @@ fn color_pixel(ray: &Ray, world: &HittableList, depth: i32) -> Vec3 {
     Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
 }
 
+fn generate_world(world: &mut HittableList) {
+    let material_ground = Lambertian {
+        albedo: Color::new(0.8, 0.8, 0.0),
+    };
+    let material_center = Lambertian {
+        albedo: Color::new(0.7, 0.3, 0.3),
+    };
+    let material_left = Metal {
+        albedo: Color::new(0.8, 0.8, 0.8),
+        fuzz: 0.0,
+    };
+    let material_right = Metal {
+        albedo: Color::new(0.8, 0.6, 0.2),
+        fuzz: 0.0,
+    };
+    world.add(Sphere::new(
+        Point3::new(0.0, -100.5, -1.0),
+        100.0,
+        Rc::new(material_ground),
+    ));
+    world.add(Sphere::new(
+        Point3::new(0.0, 0.0, -1.0),
+        0.5,
+        Rc::new(material_center),
+    ));
+    world.add(Sphere::new(
+        Point3::new(-1.0, 0.0, -1.0),
+        0.5,
+        Rc::new(material_left),
+    ));
+    world.add(Sphere::new(
+        Point3::new(1.0, 0.0, -1.0),
+        0.5,
+        Rc::new(material_right),
+    ));
+}
+
+fn generate_small_world(world: &mut HittableList) {
+    let material_center = Lambertian {
+        albedo: Color::new(0.7, 0.3, 0.3),
+    };
+    let material_right = Metal {
+        albedo: Color::new(0.8, 0.6, 0.2),
+        fuzz: 0.0,
+    };
+
+    world.add(Sphere::new(
+        Point3::new(0.0, 0.0, -1.0),
+        1.0,
+        Rc::new(material_right),
+    ));
+
+}
+
 fn main() -> Result<(), Error> {
     let aspect_ratio = 3.0 / 2.0;
-    let width: u32 = 1200;
+    let width: u32 = 640;
     let height: u32 = (width as f32 / aspect_ratio) as u32;
 
     env_logger::init();
@@ -133,42 +177,7 @@ fn main() -> Result<(), Error> {
     );
 
     let mut world = HittableList::new();
-
-    let material_ground = Lambertian {
-        albedo: Color::new(0.8, 0.8, 0.0),
-    };
-    let material_center = Lambertian {
-        albedo: Color::new(0.7, 0.3, 0.3),
-    };
-    let material_left = Metal {
-        albedo: Color::new(0.8, 0.8, 0.8),
-        fuzz: 0.0,
-    };
-    let material_right = Metal {
-        albedo: Color::new(0.8, 0.6, 0.2),
-        fuzz: 0.0,
-    };
-    world.add(Sphere::new(
-        Point3::new(0.0, -100.5, -1.0),
-        100.0,
-        Rc::new(material_ground),
-    ));
-    world.add(Sphere::new(
-        Point3::new(0.0, 0.0, -1.0),
-        0.5,
-        Rc::new(material_center),
-    ));
-    world.add(Sphere::new(
-        Point3::new(-1.0, 0.0, -1.0),
-        0.5,
-        Rc::new(material_left),
-    ));
-    world.add(Sphere::new(
-        Point3::new(1.0, 0.0, -1.0),
-        0.5,
-        Rc::new(material_right),
-    ));
-
+    generate_world(&mut world);
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
@@ -205,6 +214,7 @@ fn main() -> Result<(), Error> {
 
                 pixel.copy_from_slice(&rgba);
             }
+            println!("FRAME");
 
             if pixels
                 .render()
@@ -215,6 +225,7 @@ fn main() -> Result<(), Error> {
                 return;
             }
         }
+
 
         // Handle input events
         if input.update(&event) {
