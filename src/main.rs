@@ -1,6 +1,9 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+use std::fs::File;
+use std::io::BufWriter;
+use std::path::Path;
 use std::rc::Rc;
 
 use log::error;
@@ -118,8 +121,15 @@ fn generate_world(world: &mut HittableList) {
 }
 
 fn generate_small_world(world: &mut HittableList) {
+    let material_ground = Lambertian {
+        albedo: Color::new(0.8, 0.8, 0.0),
+    };
     let material_center = Lambertian {
         albedo: Color::new(0.7, 0.3, 0.3),
+    };
+    let material_left = Metal {
+        albedo: Color::new(0.8, 0.8, 0.8),
+        fuzz: 0.0,
     };
     let material_right = Metal {
         albedo: Color::new(0.8, 0.6, 0.2),
@@ -127,11 +137,73 @@ fn generate_small_world(world: &mut HittableList) {
     };
 
     world.add(Sphere::new(
+        Point3::new(0.0, -100.5, -1.0),
+        100.0,
+        Rc::new(material_ground),
+    ));
+
+    world.add(Sphere::new(
         Point3::new(0.0, 0.0, -1.0),
-        1.0,
+        0.5,
+        Rc::new(material_center),
+    ));
+
+    world.add(Sphere::new(
+        Point3::new(-1.0, 0.0, -1.0),
+        0.5,
+        Rc::new(material_left),
+    ));
+
+    world.add(Sphere::new(
+        Point3::new(1.0, 0.0, -1.0),
+        0.5,
         Rc::new(material_right),
     ));
 
+}
+
+fn output_image(width: u32, height: u32, samples_per_pixel: i32, world: HittableList, camera: Camera) {
+    let path = Path::new("image.png");
+    let file = File::create(path).unwrap();
+    let w = &mut BufWriter::new(file);
+    let mut rng = rand::thread_rng();
+
+    let mut encoder = png::Encoder::new(w, width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_trns(vec![0xFFu8, 0xFFu8, 0xFFu8, 0xFFu8]);
+
+    let mut image: Vec<u8> = Vec::new();
+
+    for j in (0..height).rev() {
+        for i in 0..width {
+            let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
+            for _s in 0..samples_per_pixel {
+                // u and v are the how far, as a percentage, x and y are from
+                // the vertical and horizontal of our viewport. This is used
+                // to map our pixel coords to the "camera" coords.
+                let u = (i as f32 + rng.gen::<f32>()) as f32 / (width - 1) as f32;
+                let v = (j as f32 + rng.gen::<f32>()) as f32 / (width - 1) as f32;
+
+                // origin is the camera (0, 0 ,0) and direction is the point in
+                // the viewport whose color value we are calculating.
+                let ray = camera.get_ray(u, v);
+                pixel_color += color_pixel(&ray, &world, 50);
+            }
+
+            let color = calculate_color(pixel_color, samples_per_pixel);
+            let ir = (color.x) as u8;
+            let ig = (color.y) as u8;
+            let ib = (color.z) as u8;
+            image.push(ir);
+            image.push(ig);
+            image.push(ib);
+            image.push(255);
+        }
+    }
+
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(&image).unwrap();
 }
 
 fn main() -> Result<(), Error> {
@@ -177,7 +249,10 @@ fn main() -> Result<(), Error> {
     );
 
     let mut world = HittableList::new();
-    generate_world(&mut world);
+    generate_small_world(&mut world);
+
+    output_image(width, height, samples_per_pixel, world, camera);
+    return Ok(());
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
