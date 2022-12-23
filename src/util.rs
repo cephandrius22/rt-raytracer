@@ -6,6 +6,7 @@ use std::{
     rc::Rc,
 };
 
+use nalgebra::Transform;
 use rand::Rng;
 
 use crate::material;
@@ -57,17 +58,6 @@ impl Vec3 {
     pub fn random_unit_vector() -> Vec3 {
         // Not sure about this. Should maybe just be some util function outside of the impl.
         Self::random_in_unit_sphere().unit_vector()
-    }
-
-    pub fn random_in_unit_disk() -> Vec3 {
-        loop {
-            let mut rng = rand::thread_rng();
-            let p = Vec3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
-            if p.length_squared() >= 1.0 {
-                continue;
-            }
-            return p;
-        }
     }
 
     pub fn near_zero(self) -> bool {
@@ -193,19 +183,6 @@ pub struct HitRecord {
     pub front_face: bool,
 }
 
-// This may not be the best method, I may be able to implement default
-// for the trait object inside HitRecord.
-// impl Default for HitRecord {
-//     fn default() -> Self {
-//         HitRecord {
-//             p: Point3::default(),
-//             normal: Vec3::default(),
-//             t: 0.0,
-//             front_face: false,
-//         }
-//     }
-// }
-
 impl HitRecord {
     pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: Vec3) {
         // dot product of ray and outward normal tells us if we are hitting
@@ -221,6 +198,75 @@ impl HitRecord {
 
 pub trait Hittable {
     fn hit(&self, ray: Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
+}
+
+pub struct Triangle {
+    pub v1: Point3,
+    pub v2: Point3,
+    pub v3: Point3,
+    pub mat: Rc<dyn Material>,
+}
+
+impl Triangle {
+    pub fn new(v1: Point3, v2: Point3, v3: Point3, mat: Rc<dyn Material>) -> Triangle {
+        Triangle { v1, v2, v3, mat }
+    }
+}
+
+impl Hittable for Triangle {
+    fn hit(&self, ray: Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+        let aP: f32 = self.v1.x - self.v2.x;
+        let bP: f32 = self.v1.y - self.v2.y;
+        let cP: f32 = self.v1.z - self.v2.z;
+        let dP: f32 = self.v1.x - self.v3.x;
+        let eP: f32 = self.v1.y - self.v3.y;
+        let fP: f32 = self.v1.z - self.v3.z;
+
+        let gP: f32 = ray.direction.x;
+        let hP: f32 = ray.direction.y;
+        let iP: f32 = ray.direction.z;
+
+        let jP: f32 = self.v1.x - ray.origin.x;
+        let kP: f32 = self.v1.y - ray.origin.y;
+        let lP: f32 = self.v1.z - ray.origin.z;
+
+        let m = (aP * ((eP * iP) - (hP * fP)))
+            + (bP * ((gP * fP) - (dP * iP)))
+            + (cP * ((dP * hP) - (eP * gP)));
+
+        let mut beta = (jP * ((eP * iP) - (hP * fP)))
+            + (kP * ((gP * fP) - (dP * iP)))
+            + (lP * ((dP * hP) - (eP * gP)));
+        beta = beta / m;
+
+        let mut gamma = (iP * ((aP * kP) - (jP * bP)))
+            + (hP * ((jP * cP) - (aP * lP)))
+            + (gP * ((bP * lP) - (kP * cP)));
+        gamma = gamma / m;
+
+        let mut t = (fP * ((aP * kP) - (jP * bP)))
+            + (eP * ((jP * cP) - (aP * lP)))
+            + (dP * ((bP * lP) - (kP * cP)));
+        t = -t / m;
+
+        if t < 0.0 || t < t_min || t > t_max { return None; }
+        if gamma < 0.0 || gamma > 1.0 { return None; }
+        if beta < 0.0 || beta > 1.0 - gamma { return None; }
+
+        let at_ray = ray.at(t);
+        let a = self.v3 - self.v1;
+        let b = self.v2 - self.v1;
+        let normal = a.cross(b);
+        let mut rec = HitRecord {
+            t: t,
+            p: at_ray,
+            mat: self.mat.clone(),
+            normal: normal.unit_vector(),
+            front_face: false,
+        };
+        rec.set_face_normal(&ray, normal);
+        Some(rec)
+    }
 }
 
 pub struct Sphere {

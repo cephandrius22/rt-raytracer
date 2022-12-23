@@ -11,14 +11,12 @@ pub struct Lambertian {
     pub albedo: Color,
 }
 
+// TODO: this is NOT a proper lambertian shading - but I can't figure out
+// the shadow acne-type problem I get when I implement this without
+// anti-aliasing.
 impl Material for Lambertian {
     fn scatter(&self, _r_in: &Ray, rec: &HitRecord) -> Option<(Color, Ray)> {
-        let mut scatter_direction = rec.normal + Vec3::random_unit_vector();
-
-        // catch degenerate scatter direction
-        if scatter_direction.near_zero() {
-            scatter_direction = rec.normal;
-        }
+        let scatter_direction = rec.normal;
 
         let scattered = Ray {
             origin: rec.p,

@@ -14,9 +14,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(
-        aspect_ratio: f32,
-    ) -> Camera {
+    pub fn new(aspect_ratio: f32) -> Camera {
         let viewport_height = 2.0;
         let viewport_width = aspect_ratio * viewport_height;
 

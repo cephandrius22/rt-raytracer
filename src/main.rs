@@ -17,14 +17,12 @@ use winit_input_helper::WinitInputHelper;
 
 // I'm not sure that I'm doing this correctly.
 mod util;
-use util::{Color, Hittable, HittableList, Point3, Ray, Sphere, Vec3};
+use util::{Color, Hittable, HittableList, Point3, Ray, Sphere, Vec3, Triangle};
 
 mod camera;
 use camera::Camera;
 
 mod material;
-
-use rand::Rng;
 
 fn clamp(x: f32, min: f32, max: f32) -> f32 {
     if x < min {
@@ -36,7 +34,7 @@ fn clamp(x: f32, min: f32, max: f32) -> f32 {
     x
 }
 
-fn calculate_color(color: Vec3, samples_per_pixel: i32) -> Vec3 {
+fn calculate_color(color: Vec3) -> Vec3 {
     let mut r = color.x;
     let mut g = color.y;
     let mut b = color.z;
@@ -59,7 +57,7 @@ fn color_pixel(ray: &Ray, world: &HittableList, depth: i32) -> Vec3 {
         return Vec3::new(0.0, 0.0, 0.0);
     }
 
-    if let Some(rec) = world.hit(*ray, 0.01, 99999999999.0) {
+    if let Some(rec) = world.hit(*ray, 0.001, 99999999999.0) {
         if let Some((attenuation, scattered)) = rec.mat.scatter(ray, &rec) {
             // Don't overload the * operator to do dot product...
             let res = color_pixel(&scattered, world, depth - 1);
@@ -81,47 +79,7 @@ fn color_pixel(ray: &Ray, world: &HittableList, depth: i32) -> Vec3 {
     Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
 }
 
-fn generate_world(world: &mut HittableList) {
-    let material_ground = Lambertian {
-        albedo: Color::new(0.8, 0.8, 0.0),
-    };
-    let material_center = Lambertian {
-        albedo: Color::new(0.7, 0.3, 0.3),
-    };
-    let material_left = Metal {
-        albedo: Color::new(0.8, 0.8, 0.8),
-        fuzz: 0.0,
-    };
-    let material_right = Metal {
-        albedo: Color::new(0.8, 0.6, 0.2),
-        fuzz: 0.0,
-    };
-    world.add(Sphere::new(
-        Point3::new(0.0, -100.5, -1.0),
-        100.0,
-        Rc::new(material_ground),
-    ));
-    world.add(Sphere::new(
-        Point3::new(0.0, 0.0, -1.0),
-        0.5,
-        Rc::new(material_center),
-    ));
-    world.add(Sphere::new(
-        Point3::new(-1.0, 0.0, -1.0),
-        0.5,
-        Rc::new(material_left),
-    ));
-    world.add(Sphere::new(
-        Point3::new(1.0, 0.0, -1.0),
-        0.5,
-        Rc::new(material_right),
-    ));
-}
-
 fn generate_small_world(world: &mut HittableList) {
-    let material_ground = Lambertian {
-        albedo: Color::new(0.8, 0.8, 0.0),
-    };
     let material_center = Lambertian {
         albedo: Color::new(0.7, 0.3, 0.3),
     };
@@ -134,11 +92,12 @@ fn generate_small_world(world: &mut HittableList) {
         fuzz: 0.0,
     };
 
-    // world.add(Sphere::new(
-    //     Point3::new(0.0, -100.5, -1.0),
-    //     100.0,
-    //     Rc::new(material_ground),
-    // ));
+    world.add(Triangle::new(
+        Point3::new(-2.0, -2.0, -3.0),
+        Point3::new(-2.0, 2.0, -3.0),
+        Point3::new(2.0, -2.0, -3.0),
+        Rc::new(material_center),
+    ));
 
     world.add(Sphere::new(
         Point3::new(0.0, 0.0, -1.0),
@@ -157,56 +116,6 @@ fn generate_small_world(world: &mut HittableList) {
         0.5,
         Rc::new(material_right),
     ));
-}
-
-fn output_image(
-    width: u32,
-    height: u32,
-    samples_per_pixel: i32,
-    world: HittableList,
-    camera: Camera,
-) {
-    let path = Path::new("image.png");
-    let file = File::create(path).unwrap();
-    let w = &mut BufWriter::new(file);
-    let mut rng = rand::thread_rng();
-
-    let mut encoder = png::Encoder::new(w, width, height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    encoder.set_trns(vec![0xFFu8, 0xFFu8, 0xFFu8, 0xFFu8]);
-
-    let mut image: Vec<u8> = Vec::new();
-
-    for j in (0..height).rev() {
-        for i in 0..width {
-            let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
-            for _s in 0..samples_per_pixel {
-                // u and v are the how far, as a percentage, x and y are from
-                // the vertical and horizontal of our viewport. This is used
-                // to map our pixel coords to the "camera" coords.
-                let u = (i as f32 + rng.gen::<f32>()) as f32 / (width - 1) as f32;
-                let v = (j as f32 + rng.gen::<f32>()) as f32 / (height - 1) as f32;
-
-                // origin is the camera (0, 0 ,0) and direction is the point in
-                // the viewport whose color value we are calculating.
-                let ray = camera.get_ray(u, v);
-                pixel_color += color_pixel(&ray, &world, 50);
-            }
-
-            let color = calculate_color(pixel_color, samples_per_pixel);
-            let ir = (color.x) as u8;
-            let ig = (color.y) as u8;
-            let ib = (color.z) as u8;
-            image.push(ir);
-            image.push(ig);
-            image.push(ib);
-            image.push(255);
-        }
-    }
-
-    let mut writer = encoder.write_header().unwrap();
-    writer.write_image_data(&image).unwrap();
 }
 
 fn main() -> Result<(), Error> {
@@ -233,17 +142,10 @@ fn main() -> Result<(), Error> {
         Pixels::new(width, height, surface_texture)?
     };
 
-    let samples_per_pixel = 1;
-
-    let mut rng = rand::thread_rng();
-
     let mut camera = Camera::new(aspect_ratio);
 
     let mut world = HittableList::new();
     generate_small_world(&mut world);
-
-    //output_image(width, height, samples_per_pixel, world, camera);
-    //return Ok(());
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
@@ -257,21 +159,18 @@ fn main() -> Result<(), Error> {
                 // image was displaying upside down for some reason.
                 let y = height as i16 - y;
 
-                // let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
-                // for _s in 0..samples_per_pixel {
-                    // u and v are the how far, as a percentage, x and y are from
-                    // the vertical and horizontal of our viewport. This is used
-                    // to map our pixel coords to the "camera" coords.
-                    let u = x as f32 / (width - 1) as f32;
-                    let v = y as f32 / (height - 1) as f32;
+                // u and v are the how far, as a percentage, x and y are from
+                // the vertical and horizontal of our viewport. This is used
+                // to map our pixel coords to the "camera" coords.
+                let u = x as f32 / (width - 1) as f32;
+                let v = y as f32 / (height - 1) as f32;
 
-                    // origin is the camera (0, 0 ,0) and direction is the point in
-                    // the viewport whose color value we are calculating.
-                    let ray = camera.get_ray(u, v);
-                    let pixel_color = color_pixel(&ray, &world, 50);
-                //}
+                // origin is the camera (0, 0 ,0) and direction is the point in
+                // the viewport whose color value we are calculating.
+                let ray = camera.get_ray(u, v);
+                let pixel_color = color_pixel(&ray, &world, 50);
 
-                let color = calculate_color(pixel_color, samples_per_pixel);
+                let color = calculate_color(pixel_color);
                 let ir = (color.x) as u8;
                 let ig = (color.y) as u8;
                 let ib = (color.z) as u8;
@@ -280,8 +179,7 @@ fn main() -> Result<(), Error> {
 
                 pixel.copy_from_slice(&rgba);
             }
-
-            camera.origin = camera.origin + Vec3::new(0.0, 0.0, 0.3);
+            // camera.origin = camera.origin + Vec3::new(0.1, 0.0, 0.0);
 
             if pixels
                 .render()
