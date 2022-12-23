@@ -41,12 +41,10 @@ fn calculate_color(color: Vec3, samples_per_pixel: i32) -> Vec3 {
     let mut g = color.y;
     let mut b = color.z;
 
-    let scale = 1.0 / samples_per_pixel as f32;
-
     // sqrt is for gamma correction
-    r = f32::sqrt(r * scale);
-    g = f32::sqrt(g * scale);
-    b = f32::sqrt(b * scale);
+    r = f32::sqrt(r);
+    g = f32::sqrt(g);
+    b = f32::sqrt(b);
 
     Vec3 {
         x: clamp(r, 0.0, 0.999) * 256.0,
@@ -72,7 +70,7 @@ fn color_pixel(ray: &Ray, world: &HittableList, depth: i32) -> Vec3 {
             };
             return vec;
         }
-        
+
         return Color::new(0.0, 0.0, 0.0);
     }
 
@@ -136,11 +134,11 @@ fn generate_small_world(world: &mut HittableList) {
         fuzz: 0.0,
     };
 
-    world.add(Sphere::new(
-        Point3::new(0.0, -100.5, -1.0),
-        100.0,
-        Rc::new(material_ground),
-    ));
+    // world.add(Sphere::new(
+    //     Point3::new(0.0, -100.5, -1.0),
+    //     100.0,
+    //     Rc::new(material_ground),
+    // ));
 
     world.add(Sphere::new(
         Point3::new(0.0, 0.0, -1.0),
@@ -159,10 +157,15 @@ fn generate_small_world(world: &mut HittableList) {
         0.5,
         Rc::new(material_right),
     ));
-
 }
 
-fn output_image(width: u32, height: u32, samples_per_pixel: i32, world: HittableList, camera: Camera) {
+fn output_image(
+    width: u32,
+    height: u32,
+    samples_per_pixel: i32,
+    world: HittableList,
+    camera: Camera,
+) {
     let path = Path::new("image.png");
     let file = File::create(path).unwrap();
     let w = &mut BufWriter::new(file);
@@ -183,7 +186,7 @@ fn output_image(width: u32, height: u32, samples_per_pixel: i32, world: Hittable
                 // the vertical and horizontal of our viewport. This is used
                 // to map our pixel coords to the "camera" coords.
                 let u = (i as f32 + rng.gen::<f32>()) as f32 / (width - 1) as f32;
-                let v = (j as f32 + rng.gen::<f32>()) as f32 / (width - 1) as f32;
+                let v = (j as f32 + rng.gen::<f32>()) as f32 / (height - 1) as f32;
 
                 // origin is the camera (0, 0 ,0) and direction is the point in
                 // the viewport whose color value we are calculating.
@@ -207,8 +210,8 @@ fn output_image(width: u32, height: u32, samples_per_pixel: i32, world: Hittable
 }
 
 fn main() -> Result<(), Error> {
-    let aspect_ratio = 3.0 / 2.0;
-    let width: u32 = 640;
+    let aspect_ratio = 16.0 / 9.0;
+    let width: u32 = 400;
     let height: u32 = (width as f32 / aspect_ratio) as u32;
 
     env_logger::init();
@@ -230,29 +233,17 @@ fn main() -> Result<(), Error> {
         Pixels::new(width, height, surface_texture)?
     };
 
-    let samples_per_pixel = 50;
+    let samples_per_pixel = 1;
 
     let mut rng = rand::thread_rng();
 
-    let lookfrom = Point3::new(13.0, 2.0, 3.0);
-    let lookat = Point3::new(0.0, 0.0, 0.0);
-    let vup = Vec3::new(0.0, 1.0, 0.0);
-
-    let camera = Camera::new(
-        lookfrom,
-        lookat,
-        vup,
-        20.0,
-        width as f32 / height as f32,
-        0.1,
-        10.0,
-    );
+    let mut camera = Camera::new(aspect_ratio);
 
     let mut world = HittableList::new();
     generate_small_world(&mut world);
 
-    output_image(width, height, samples_per_pixel, world, camera);
-    return Ok(());
+    //output_image(width, height, samples_per_pixel, world, camera);
+    //return Ok(());
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
@@ -266,19 +257,19 @@ fn main() -> Result<(), Error> {
                 // image was displaying upside down for some reason.
                 let y = height as i16 - y;
 
-                let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
-                for _s in 0..samples_per_pixel {
+                // let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
+                // for _s in 0..samples_per_pixel {
                     // u and v are the how far, as a percentage, x and y are from
                     // the vertical and horizontal of our viewport. This is used
                     // to map our pixel coords to the "camera" coords.
-                    let u = (x as f32 + rng.gen::<f32>()) as f32 / (width - 1) as f32;
-                    let v = (y as f32 + rng.gen::<f32>()) as f32 / (height - 1) as f32;
+                    let u = x as f32 / (width - 1) as f32;
+                    let v = y as f32 / (height - 1) as f32;
 
                     // origin is the camera (0, 0 ,0) and direction is the point in
                     // the viewport whose color value we are calculating.
                     let ray = camera.get_ray(u, v);
-                    pixel_color += color_pixel(&ray, &world, 50);
-                }
+                    let pixel_color = color_pixel(&ray, &world, 50);
+                //}
 
                 let color = calculate_color(pixel_color, samples_per_pixel);
                 let ir = (color.x) as u8;
@@ -289,7 +280,8 @@ fn main() -> Result<(), Error> {
 
                 pixel.copy_from_slice(&rgba);
             }
-            println!("FRAME");
+
+            camera.origin = camera.origin + Vec3::new(0.0, 0.0, 0.3);
 
             if pixels
                 .render()
@@ -300,7 +292,6 @@ fn main() -> Result<(), Error> {
                 return;
             }
         }
-
 
         // Handle input events
         if input.update(&event) {
