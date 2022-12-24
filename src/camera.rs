@@ -3,14 +3,16 @@
 
 // This seems incorrect.
 use crate::util;
-use util::{Point3, Ray, Vec3};
+use util::{Point3, Ray};
+
+use nalgebra::Vector3;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Camera {
     pub origin: Point3,
     lower_left_corner: Point3,
-    horizontal: Vec3,
-    vertical: Vec3,
+    horizontal: Vector3<f32>,
+    vertical: Vector3<f32>,
 }
 
 impl Camera {
@@ -19,10 +21,10 @@ impl Camera {
         let viewport_width = aspect_ratio * viewport_height;
 
         let origin = Point3::new(0.0, 0.0, 0.0);
-        let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
-        let vertical = Vec3::new(0.0, viewport_height, 0.0);
+        let horizontal = Vector3::new(viewport_width, 0.0, 0.0);
+        let vertical = Vector3::new(0.0, viewport_height, 0.0);
         let lower_left_corner =
-            origin - (horizontal / 2.0) - (vertical / 2.0) - Vec3::new(0.0, 0.0, 1.0);
+            origin - (horizontal / 2.0) - (vertical / 2.0) - Vector3::new(0.0, 0.0, 1.0);
 
         Camera {
             origin,

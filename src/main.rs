@@ -1,10 +1,8 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-use std::fs::File;
-use std::io::BufWriter;
-use std::path::Path;
 use std::rc::Rc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use log::error;
 use material::{Lambertian, Metal};
@@ -15,9 +13,11 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
+use nalgebra::Vector3;
+
 // I'm not sure that I'm doing this correctly.
 mod util;
-use util::{Color, Hittable, HittableList, Point3, Ray, Sphere, Vec3, Triangle};
+use util::{Color, Hittable, HittableList, Point3, Ray, Sphere, Triangle, unit_vector};
 
 mod camera;
 use camera::Camera;
@@ -34,7 +34,7 @@ fn clamp(x: f32, min: f32, max: f32) -> f32 {
     x
 }
 
-fn calculate_color(color: Vec3) -> Vec3 {
+fn calculate_color(color: Vector3<f32>) -> Vector3<f32> {
     let mut r = color.x;
     let mut g = color.y;
     let mut b = color.z;
@@ -44,39 +44,39 @@ fn calculate_color(color: Vec3) -> Vec3 {
     g = f32::sqrt(g);
     b = f32::sqrt(b);
 
-    Vec3 {
-        x: clamp(r, 0.0, 0.999) * 256.0,
-        y: clamp(g, 0.0, 0.999) * 256.0,
-        z: clamp(b, 0.0, 0.999) * 256.0,
-    }
+    Vector3::new(
+        clamp(r, 0.0, 0.999) * 256.0,
+        clamp(g, 0.0, 0.999) * 256.0,
+        clamp(b, 0.0, 0.999) * 256.0,
+    )
 }
 
 /// Determine the color of a pixel for a given ray.
-fn color_pixel(ray: &Ray, world: &HittableList, depth: i32) -> Vec3 {
+fn color_pixel(ray: &Ray, world: &HittableList, depth: i32) -> Vector3<f32> {
     if depth <= 0 {
-        return Vec3::new(0.0, 0.0, 0.0);
+        return Vector3::new(0.0, 0.0, 0.0);
     }
 
     if let Some(rec) = world.hit(*ray, 0.001, 99999999999.0) {
         if let Some((attenuation, scattered)) = rec.mat.scatter(ray, &rec) {
             // Don't overload the * operator to do dot product...
             let res = color_pixel(&scattered, world, depth - 1);
-            let vec = Vec3 {
-                x: res.x * attenuation.x,
-                y: res.y * attenuation.y,
-                z: res.z * attenuation.z,
-            };
+            let vec = Vector3::new(
+                res.x * attenuation.x,
+                res.y * attenuation.y,
+                res.z * attenuation.z,
+            );
             return vec;
         }
 
-        return Color::new(0.0, 0.0, 0.0);
+        return Vector3::new(0.0, 0.0, 0.0);
     }
 
-    let unit_direction = ray.direction.unit_vector();
+    let unit_direction = unit_vector(ray.direction);
     let t = 0.5 * (unit_direction.y + 1.0);
 
     // gradient background
-    Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
+    Vector3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vector3::new(0.5, 0.7, 1.0) * t
 }
 
 fn generate_small_world(world: &mut HittableList) {
@@ -148,6 +148,29 @@ fn main() -> Result<(), Error> {
     generate_small_world(&mut world);
 
     event_loop.run(move |event, _, control_flow| {
+        let frame_start = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+
+        // Handle input events
+        if input.update(&event) {
+            // Close events
+            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+
+            // Resize the window
+            if let Some(size) = input.window_resized() {
+                pixels.resize_surface(size.width, size.height);
+            }
+
+            // Update internal state and request a redraw
+            // world.update();
+            window.request_redraw();
+        }
+
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
             let frame = pixels.get_frame();
@@ -179,7 +202,7 @@ fn main() -> Result<(), Error> {
 
                 pixel.copy_from_slice(&rgba);
             }
-            // camera.origin = camera.origin + Vec3::new(0.1, 0.0, 0.0);
+            // camera.origin = camera.origin + Vector3::new(0.1, 0.0, 0.0);
 
             if pixels
                 .render()
@@ -191,22 +214,9 @@ fn main() -> Result<(), Error> {
             }
         }
 
-        // Handle input events
-        if input.update(&event) {
-            // Close events
-            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
-
-            // Resize the window
-            if let Some(size) = input.window_resized() {
-                pixels.resize_surface(size.width, size.height);
-            }
-
-            // Update internal state and request a redraw
-            // world.update();
-            window.request_redraw();
-        }
+        let frame_end = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
     });
 }

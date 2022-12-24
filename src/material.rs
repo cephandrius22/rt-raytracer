@@ -1,6 +1,7 @@
 use rand::Rng;
 
-use crate::util::{Color, HitRecord, Ray, Vec3};
+use crate::util;
+use crate::util::{Color, HitRecord, Ray, reflect, unit_vector};
 
 pub trait Material {
     fn scatter(&self, r_in: &Ray, rec: &HitRecord) -> Option<(Color, Ray)>;
@@ -34,14 +35,14 @@ pub struct Metal {
 
 impl Material for Metal {
     fn scatter(&self, r_in: &Ray, rec: &HitRecord) -> Option<(Color, Ray)> {
-        let reflected = r_in.direction.unit_vector().reflect(rec.normal);
+        let reflected = reflect(unit_vector(r_in.direction), rec.normal);
         let scattered = Ray {
             origin: rec.p,
-            direction: reflected + (Vec3::random_in_unit_sphere() * self.fuzz),
+            direction: reflected + (util::random_in_unit_sphere() * self.fuzz),
         };
         let attenuation = self.albedo;
 
-        if scattered.direction * rec.normal > 0.0 {
+        if scattered.direction.dot(&rec.normal) > 0.0 {
             return Some((attenuation, scattered));
         } else {
             return None;
@@ -69,9 +70,9 @@ impl Material for Dialetric {
             self.index_of_refraction
         };
 
-        let unit_direction = r_in.direction.unit_vector();
+        let unit_direction = unit_vector(r_in.direction);
 
-        let cos_theta = f32::min(-unit_direction * rec.normal, 1.0);
+        let cos_theta = f32::min(-unit_direction.dot(&rec.normal), 1.0);
         let sin_theta = f32::sqrt(1.0 - (cos_theta * cos_theta));
 
         let mut rng = rand::thread_rng();
@@ -79,9 +80,9 @@ impl Material for Dialetric {
         let direction = if cannot_refarct
             || reflectance(cos_theta, refration_ratio) > rng.gen_range(0.0..1.0)
         {
-            unit_direction.reflect(rec.normal)
+            reflect(unit_direction, rec.normal)
         } else {
-            unit_direction.refract(rec.normal, refration_ratio)
+            util::refract(unit_direction, rec.normal, refration_ratio)
         };
 
         return Some((
