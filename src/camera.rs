@@ -2,12 +2,12 @@
 #![forbid(unsafe_code)]
 
 // This seems incorrect.
-use crate::util;
-use util::{Point3, Ray, Vec3};
+use crate::geometry::{Point3, Ray};
+use crate::vec::Vec3;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Camera {
-    pub origin: Point3,
+    origin: Point3,
     lower_left_corner: Point3,
     horizontal: Vec3,
     vertical: Vec3,

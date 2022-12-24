@@ -1,9 +1,6 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-use std::fs::File;
-use std::io::BufWriter;
-use std::path::Path;
 use std::rc::Rc;
 
 use log::error;
@@ -16,13 +13,16 @@ use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
 // I'm not sure that I'm doing this correctly.
-mod util;
-use util::{Color, Hittable, HittableList, Point3, Ray, Sphere, Vec3, Triangle};
+mod geometry;
+use geometry::{Color, Hittable, HittableList, Point3, Ray, Sphere, Triangle};
 
 mod camera;
 use camera::Camera;
 
 mod material;
+
+mod vec;
+use vec::Vec3;
 
 fn clamp(x: f32, min: f32, max: f32) -> f32 {
     if x < min {
@@ -142,7 +142,7 @@ fn main() -> Result<(), Error> {
         Pixels::new(width, height, surface_texture)?
     };
 
-    let mut camera = Camera::new(aspect_ratio);
+    let camera = Camera::new(aspect_ratio);
 
     let mut world = HittableList::new();
     generate_small_world(&mut world);
@@ -179,7 +179,6 @@ fn main() -> Result<(), Error> {
 
                 pixel.copy_from_slice(&rgba);
             }
-            // camera.origin = camera.origin + Vec3::new(0.1, 0.0, 0.0);
 
             if pixels
                 .render()
