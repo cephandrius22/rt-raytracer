@@ -142,12 +142,49 @@ fn main() -> Result<(), Error> {
         Pixels::new(width, height, surface_texture)?
     };
 
-    let camera = Camera::new(aspect_ratio);
+    let mut camera = Camera::new(aspect_ratio);
 
     let mut world = HittableList::new();
     generate_small_world(&mut world);
 
+    // let mut camera_translation = Vec3::new(0.0, 0.0, 0.0);
+
     event_loop.run(move |event, _, control_flow| {
+        // Handle input events
+        if input.update(&event) {
+            // Close events
+            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+
+            // TODO: this is stupid change this
+            if input.key_pressed(VirtualKeyCode::A) {
+                camera.origin += Vec3::new(-1.0, 0.0, 0.0);
+            }
+
+            if input.key_pressed(VirtualKeyCode::W) {
+                camera.origin += Vec3::new(0.0, 0.0, -1.0);
+            }
+
+            if input.key_pressed(VirtualKeyCode::S) {
+                camera.origin += Vec3::new(0.0, 0.0, 1.0);
+            }
+
+            if input.key_pressed(VirtualKeyCode::D) {
+                camera.origin += Vec3::new(1.0, 0.0, 0.0);
+            }
+
+            // Resize the window
+            if let Some(size) = input.window_resized() {
+                pixels.resize_surface(size.width, size.height);
+            }
+
+            // Update internal state and request a redraw
+            // world.update();
+            window.request_redraw();
+        }
+
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
             let frame = pixels.get_frame();
@@ -188,24 +225,6 @@ fn main() -> Result<(), Error> {
                 *control_flow = ControlFlow::Exit;
                 return;
             }
-        }
-
-        // Handle input events
-        if input.update(&event) {
-            // Close events
-            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
-
-            // Resize the window
-            if let Some(size) = input.window_resized() {
-                pixels.resize_surface(size.width, size.height);
-            }
-
-            // Update internal state and request a redraw
-            // world.update();
-            window.request_redraw();
         }
     });
 }

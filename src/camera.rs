@@ -7,7 +7,7 @@ use crate::vec::Vec3;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Camera {
-    origin: Point3,
+    pub origin: Point3,
     lower_left_corner: Point3,
     horizontal: Vec3,
     vertical: Vec3,
